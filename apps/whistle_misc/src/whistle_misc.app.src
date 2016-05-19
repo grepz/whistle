@@ -1,0 +1,17 @@
+{application, whistle_misc,
+ [{description, "Whistle misc functionality"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, { whistle_misc_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    lager
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, []},
+  {licenses, []},
+  {links, []}
+ ]}.
