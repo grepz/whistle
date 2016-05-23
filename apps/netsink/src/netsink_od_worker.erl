@@ -22,12 +22,15 @@
 -define(STATUS_INIT, worker_init).
 
 -include_lib("whistle_misc/include/logging.hrl").
+-include_lib("netsink/include/netsink.hrl").
 
--record(state, {watcher = undefined, idx = undefined}).
+-record(state, {watcher = undefined, idx = undefined, templates = []}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -88,6 +91,17 @@ handle_call(Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast(?worker_data_process(Header, Data), State = #state{templates = Templates0}) ->
+%%    ?debug([?MODULE, handle_cast, worker_data_process, {header, Header}, {data, Data}]),
+    case netsink:packet_data(netsink:header_version(Header), Data) of
+        {ok, DataFlowSet} ->
+            ?debug([?MODULE, handle_cast, {data_packets_len, length(DataFlowSet)}]),
+            Templates1 = process_netflow_data(Templates0, DataFlowSet),
+            {noreply, State#state{templates = Templates1}};
+        {error, Reason} ->
+            ?debug([?MODULE, handle_cast, {error, Reason}]),
+            {noreply, State}
+    end;
 handle_cast(Msg, State) ->
     ?debug([?MODULE, handle_cast, {msg, Msg}]),
     {noreply, State}.
@@ -135,3 +149,7 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+process_netflow_data(Templates0, _DataFlowSet) ->
+    Templates1 = Templates0,
+    {ok, Templates1}.

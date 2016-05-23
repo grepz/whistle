@@ -4,6 +4,9 @@
 -define(NETFLOW_V9, 9).
 -define(NETFLOW_V5, 5).
 
+-define(NETFLOW_FLOWSET_TEMPLATE_ID, 0).
+-define(NETFLOW_FLOWSET_OPTIONS_TEMPLATE_ID, 1).
+
 -record(netflow_export_header, {
           ver :: integer(),
           count :: non_neg_integer(),

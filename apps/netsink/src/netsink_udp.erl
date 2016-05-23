@@ -108,7 +108,7 @@ handle_cast(Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info({udp, Socket, Addr, _Port, Packet}, State = #state{sock = Socket}) ->
-    case netsink:get_packet_info(Packet) of
+    case netsink:packet_header(Packet) of
         {ok, Header, Data} ->
             ok = route_packet(Addr, Header, Data);
         {error, Error} ->

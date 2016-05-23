@@ -258,5 +258,5 @@ bind_worker(ODID, Queue0, Binded0) ->
             {error, wpool_empty}
     end.
 
-push_to_worker(#od_worker{pid = _Pid}, _Header, _Data) ->
-    ok.
+push_to_worker(#od_worker{pid = Pid}, Header, Data) ->
+    ok = gen_server:cast(Pid, ?worker_data_process(Header, Data)).

@@ -2,9 +2,10 @@
 
 -export([netflow_rec_pp/2]).
 
--export([get_packet_info/1, header_version/1, header_src_id/1]).
+-export([packet_header/1, header_version/1, header_src_id/1, packet_data/2]).
 
 -include_lib("netsink/include/netflow.hrl").
+-include_lib("whistle_misc/include/logging.hrl").
 
 %% 1. An Export Packet consisting of interleaved Template, Data, and
 %%    Options Template FlowSets.  Example: a newly created Template is
@@ -376,10 +377,15 @@
 %%    Collector.
 
 
-get_packet_info(<<?NETFLOW_V9:16/big-unsigned-integer, Rest/binary>>) ->
+packet_header(<<?NETFLOW_V9:16/big-unsigned-integer, Rest/binary>>) ->
     decode_header_v9(Rest);
-get_packet_info(<<?NETFLOW_V5:16/big-unsigned-integer, Rest/binary>>) ->
+packet_header(<<?NETFLOW_V5:16/big-unsigned-integer, Rest/binary>>) ->
     decode_header_v5(Rest).
+
+packet_data(?NETFLOW_V9, Data) ->
+    parse_data_v9(Data, []);
+packet_data(?NETFLOW_V5, Data) ->
+    parse_data_v5(Data).
 
 header_src_id(#netflow_export_header{src_id = Ver}) -> Ver.
 
@@ -424,34 +430,27 @@ decode_header_v9(_) ->
 decode_header_v5(_) ->
     {error, unimplemented}.
 
-%% decode_v5(_Packet) ->
-%%     {ok, #netflow_export_packet{}}.
+parse_data_v9(
+  <<FlowSetID:16/big-unsigned-integer,
+    PacketLength:16/big-unsigned-integer, Data/binary>>, Acc
+ ) ->
+    ?debug([?MODULE, parse_data_v9, {length, PacketLength}, {flowset_id, FlowSetID}]),
+    %% Deduct FlowSetID and Length parameters from packet length
+    case parse_packet_data(PacketLength - 4, FlowSetID, Data) of
+        {ok, FlowSetData, Rest} -> parse_data_v9(Rest, [FlowSetData | Acc]);
+        Else -> Else
+    end;
+parse_data_v9(<<>>, Acc) ->
+    {ok, Acc}.
 
-%% decode_v9(Packet) ->
-%%     case decode_v9_header(Packet) of
-%%         {ok, Header, Data} ->
-%%             decode_v9_flow(Header, Data);
-%%         Else ->
-%%             Else
-%%     end.
+parse_packet_data(Len, FlowSetID, Data) when is_integer(Len) andalso Len > 0 ->
+    case Data of
+        <<PacketData:Len/binary, Rest/binary>> -> {ok, {FlowSetID, PacketData}, Rest};
+        _ -> {error, packet_binary_format}
+    end;
+parse_packet_data(_, _, _) ->
+    {error, top_binary_format}.
 
-%% decode_v9_header(
-%%   <<Count:16/big-unsigned-integer, SysUpTime:32/big-unsigned-integer,
-%%     Timestamp:32/big-unsigned-integer, SeqNum:32/big-unsigned-integer,
-%%     SrcID:32/big-unsigned-integer, Data/binary>>
-%%  ) ->
-%%     Header =
-%%         #netflow_export_header{
-%%            ver = ?NETFLOW_V9,
-%%            count = Count,
-%%            uptime = SysUpTime,
-%%            timestamp = Timestamp,
-%%            seq_num = SeqNum,
-%%            src_id = SrcID
-%%           },
-%%     {ok, Header, Data};
-%% decode_v9_header(_) ->
-%%     {error, unknown_header_format}.
 
-%% decode_v9_flow(Header = #netflow_export_header{}, Data) ->
-%%     {ok, #netflow_export_packet{header = Header, data = Data}}.
+parse_data_v5(_) ->
+    {error, unimplemented}.
