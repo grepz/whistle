@@ -95,11 +95,19 @@ handle_cast(?worker_data_process(Header, Data), State = #state{templates = Templ
 %%    ?debug([?MODULE, handle_cast, worker_data_process, {header, Header}, {data, Data}]),
     case netsink:packet_data(netsink:header_version(Header), Data) of
         {ok, DataFlowSet} ->
-            ?debug([?MODULE, handle_cast, {data_packets_len, length(DataFlowSet)}]),
-            Templates1 = process_netflow_data(Templates0, DataFlowSet),
-            {noreply, State#state{templates = Templates1}};
+            ?debug([?MODULE, handle_cast, worker_data_process, {data_packets_len, length(DataFlowSet)}]),
+            case netsink:process_flowsets(Templates0, DataFlowSet) of
+                {ok, Templates1, NetFlowData} ->
+                    ?debug(
+                       [?MODULE, handle_cast, worker_data_process,
+                        {new_templates, Templates1}, {data, NetFlowData}]
+                      ),
+                    {noreply, State#state{templates = Templates1}};
+                {error, Reason} ->
+                    ?error([?MODULE, handle_cast, worker_data_process, {error, Reason}])
+            end;
         {error, Reason} ->
-            ?debug([?MODULE, handle_cast, {error, Reason}]),
+            ?error([?MODULE, handle_cast, worker_data_process, {error, Reason}]),
             {noreply, State}
     end;
 handle_cast(Msg, State) ->
@@ -149,7 +157,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
-process_netflow_data(Templates0, _DataFlowSet) ->
-    Templates1 = Templates0,
-    {ok, Templates1}.

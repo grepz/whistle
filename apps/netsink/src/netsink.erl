@@ -4,6 +4,8 @@
 
 -export([packet_header/1, header_version/1, header_src_id/1, packet_data/2]).
 
+-export([process_flowsets/2]).
+
 -include_lib("netsink/include/netflow.hrl").
 -include_lib("whistle_misc/include/logging.hrl").
 
@@ -383,9 +385,9 @@ packet_header(<<?NETFLOW_V5:16/big-unsigned-integer, Rest/binary>>) ->
     decode_header_v5(Rest).
 
 packet_data(?NETFLOW_V9, Data) ->
-    parse_data_v9(Data, []);
+    parse_packet_data_v9(Data, []);
 packet_data(?NETFLOW_V5, Data) ->
-    parse_data_v5(Data).
+    parse_packet_data_v5(Data).
 
 header_src_id(#netflow_export_header{src_id = Ver}) -> Ver.
 
@@ -398,6 +400,8 @@ header_version(#netflow_export_header{ver = Ver}) -> Ver.
 %% decode(_) ->
 %%     {error, packet_header_unknown}.
 
+process_flowsets(Templates, FlowSets) ->
+    process_flowsets(Templates, FlowSets, []).
 
 %% io_lib_pretty:print(Rec, fun netsink:netflow_rec_pp/2)
 
@@ -408,6 +412,40 @@ netflow_rec_pp(netflow_export_packet, 2) ->
 netflow_rec_pp(_, _) -> no.
 
 %% Internal
+
+%% TODO:
+update_templates(Templates0, _TemplateFlowSet) ->
+    Templates0.
+
+process_flowsets(Templates0, [FlowSet | FlowSets], ParsedData) ->
+    case decode_flowset(FlowSet) of
+        {ok, {template, TemplateFlowSet}} ->
+            Templates1 = update_templates(Templates0, TemplateFlowSet),
+            process_flowsets(Templates1, FlowSets, ParsedData);
+        {ok, {data, DataFlowSet}} ->
+            {ok, NetFlowData} = apply_template(Templates0, DataFlowSet),
+            process_flowsets(Templates0, FlowSets, [NetFlowData | ParsedData]);
+        Else -> Else
+    end;
+process_flowsets(Templates, [], ParsedData) ->
+    {ok, Templates, ParsedData}.
+
+apply_template(_Templates, _Data) ->
+    {ok, detempalted_data}.
+
+decode_flowset({?NETFLOW_FLOWSET_TEMPLATE_ID, RecordsNum, Template}) ->
+    decode_template(RecordsNum, Template);
+decode_flowset({FlowSetID, RecordsNum, Data})
+  when is_integer(FlowSetID) andalso FlowSetID > ?NETFLOW_FLOWSET_MAX_RESERVED_ID ->
+    decode_data(RecordsNum, Data);
+decode_flowset({FlowSetID, _, _}) ->
+    {error, {unknown_flowset_id, FlowSetID}}.
+
+decode_template(_RecordsNum, _TemplateData) ->
+    {ok, {template, template_data}}.
+
+decode_data(_RecordsNum, _NetflowData) ->
+    {ok, {data, netflow_data}}.
 
 decode_header_v9(
   <<Count:16/big-unsigned-integer, SysUpTime:32/big-unsigned-integer,
@@ -430,27 +468,30 @@ decode_header_v9(_) ->
 decode_header_v5(_) ->
     {error, unimplemented}.
 
-parse_data_v9(
+parse_packet_data_v9(
   <<FlowSetID:16/big-unsigned-integer,
     PacketLength:16/big-unsigned-integer, Data/binary>>, Acc
  ) ->
-    ?debug([?MODULE, parse_data_v9, {length, PacketLength}, {flowset_id, FlowSetID}]),
+    ?debug([?MODULE, parse_packet_data_v9, {length, PacketLength}, {flowset_id, FlowSetID}]),
     %% Deduct FlowSetID and Length parameters from packet length
-    case parse_packet_data(PacketLength - 4, FlowSetID, Data) of
-        {ok, FlowSetData, Rest} -> parse_data_v9(Rest, [FlowSetData | Acc]);
+    BytesNum = PacketLength - 4,
+    case get_packet_data(BytesNum, FlowSetID, Data) of
+        {ok, FlowSetData, Rest} -> parse_packet_data_v9(Rest, [FlowSetData | Acc]);
         Else -> Else
     end;
-parse_data_v9(<<>>, Acc) ->
+parse_packet_data_v9(<<>>, Acc) ->
     {ok, Acc}.
 
-parse_packet_data(Len, FlowSetID, Data) when is_integer(Len) andalso Len > 0 ->
+get_packet_data(Len, FlowSetID, Data) when is_integer(Len) andalso Len > 0 ->
     case Data of
-        <<PacketData:Len/binary, Rest/binary>> -> {ok, {FlowSetID, PacketData}, Rest};
+        <<PacketData:Len/binary, Rest/binary>> ->
+            %% Each record is 2 bytes long
+            {ok, {FlowSetID, Len div 2, PacketData}, Rest};
         _ -> {error, packet_binary_format}
     end;
-parse_packet_data(_, _, _) ->
+get_packet_data(_, _, _) ->
     {error, top_binary_format}.
 
 
-parse_data_v5(_) ->
+parse_packet_data_v5(_) ->
     {error, unimplemented}.

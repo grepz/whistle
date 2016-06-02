@@ -6,6 +6,7 @@
 
 -define(NETFLOW_FLOWSET_TEMPLATE_ID, 0).
 -define(NETFLOW_FLOWSET_OPTIONS_TEMPLATE_ID, 1).
+-define(NETFLOW_FLOWSET_MAX_RESERVED_ID, 255).
 
 -record(netflow_export_header, {
           ver :: integer(),
