@@ -413,9 +413,14 @@ netflow_rec_pp(_, _) -> no.
 
 %% Internal
 
-%% TODO:
-update_templates(Templates0, _TemplateFlowSet) ->
-    Templates0.
+update_templates(Templates, []) -> Templates;
+update_templates(OldTemplates, [NewTemplate | NewTemplates]) ->
+    TemplatesUpdated =
+        case lists:keytake(NewTemplate#template_rec.id, #template_rec.id, OldTemplates) of
+            false -> [NewTemplate | OldTemplates];
+            {value, _, TemplatesCut} -> [NewTemplate | TemplatesCut]
+        end,
+    update_templates(TemplatesUpdated, NewTemplates).
 
 process_flowsets(Templates0, [FlowSet | FlowSets], ParsedData) ->
     case decode_flowset(FlowSet) of
@@ -441,8 +446,35 @@ decode_flowset({FlowSetID, RecordsNum, Data})
 decode_flowset({FlowSetID, _, _}) ->
     {error, {unknown_flowset_id, FlowSetID}}.
 
-decode_template(_RecordsNum, _TemplateData) ->
-    {ok, {template, template_data}}.
+decode_template(RecordsNumTotal, TemplateData)
+  when is_integer(RecordsNumTotal) andalso RecordsNumTotal > 0 ->
+    Templates = decode_template_iter(TemplateData, []),
+    {ok, {template, Templates}}.
+
+decode_template_iter(<<>>, Acc) -> Acc;
+decode_template_iter(
+  <<TemplateID:16/big-unsigned-integer, FieldsCnt:16/big-unsigned-integer, Rest0/binary>>, Acc
+ ) ->
+    {TemplateFieldRecs, Rest1} = decode_single_template(FieldsCnt, Rest0, []),
+    TemplateRec =
+        #template_rec{
+           id = TemplateID,
+           fields = TemplateFieldRecs
+          },
+    decode_template_iter(Rest1, [TemplateRec | Acc]).
+
+decode_single_template(0, Rest, Acc) -> {Acc, Rest};
+decode_single_template(
+  FieldsCnt,
+  <<FieldType:16/big-unsigned-integer, FieldLength:16/big-unsigned-integer, Rest/binary>>,
+  Acc
+ ) ->
+    TemplateRec =
+        #template_field_rec{
+           length = FieldLength,
+           type = FieldType
+          },
+    decode_single_template(FieldsCnt - 1, Rest, [TemplateRec | Acc]).
 
 decode_data(_RecordsNum, _NetflowData) ->
     {ok, {data, netflow_data}}.

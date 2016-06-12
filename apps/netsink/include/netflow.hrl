@@ -8,6 +8,16 @@
 -define(NETFLOW_FLOWSET_OPTIONS_TEMPLATE_ID, 1).
 -define(NETFLOW_FLOWSET_MAX_RESERVED_ID, 255).
 
+-record(template_field_rec, {
+          length :: non_neg_integer(),
+          type :: non_neg_integer()
+         }).
+
+-record(template_rec, {
+          id :: non_neg_integer(),
+          fields :: [#template_field_rec{}]
+         }).
+
 -record(netflow_export_header, {
           ver :: integer(),
           count :: non_neg_integer(),

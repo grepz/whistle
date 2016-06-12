@@ -100,7 +100,7 @@ handle_cast(?worker_data_process(Header, Data), State = #state{templates = Templ
                 {ok, Templates1, NetFlowData} ->
                     ?debug(
                        [?MODULE, handle_cast, worker_data_process,
-                        {new_templates, Templates1}, {data, NetFlowData}]
+                        {templates, Templates1}, {data, NetFlowData}]
                       ),
                     {noreply, State#state{templates = Templates1}};
                 {error, Reason} ->
