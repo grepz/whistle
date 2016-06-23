@@ -24,7 +24,12 @@
 -include_lib("whistle_misc/include/logging.hrl").
 -include_lib("netsink/include/netsink.hrl").
 
--record(state, {watcher = undefined, idx = undefined, templates = []}).
+-record(state, {
+          watcher = undefined,
+          idx = undefined,
+          unprocessed = [],
+          templates = []}
+       ).
 
 %%%===================================================================
 %%% API
@@ -91,18 +96,23 @@ handle_call(Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(?worker_data_process(Header, Data), State = #state{templates = Templates0}) ->
+handle_cast(
+  ?worker_data_process(Header, Data),
+  State = #state{templates = Templates0, unprocessed = Unprocessed0}
+ ) ->
 %%    ?debug([?MODULE, handle_cast, worker_data_process, {header, Header}, {data, Data}]),
     case netsink:packet_data(netsink:header_version(Header), Data) of
         {ok, DataFlowSet} ->
             ?debug([?MODULE, handle_cast, worker_data_process, {data_packets_len, length(DataFlowSet)}]),
             case netsink:process_flowsets(Templates0, DataFlowSet) of
-                {ok, Templates1, NetFlowData} ->
+                {ok, Templates1, NetFlowData0} ->
                     ?debug(
                        [?MODULE, handle_cast, worker_data_process,
-                        {templates, Templates1}, {data, NetFlowData}]
+                        {templates, Templates1}, {data, NetFlowData0}]
                       ),
-                    {noreply, State#state{templates = Templates1}};
+                    Unprocessed1 = lists:concat([Unprocessed0, NetFlowData0]),
+                    {_Processed, Unprocessed2} = netsink:apply_templates(Templates1, Unprocessed1),
+                    {noreply, State#state{templates = Templates1, unprocessed = Unprocessed2}};
                 {error, Reason} ->
                     ?error([?MODULE, handle_cast, worker_data_process, {error, Reason}])
             end;

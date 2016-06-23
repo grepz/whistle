@@ -4,7 +4,7 @@
 
 -export([packet_header/1, header_version/1, header_src_id/1, packet_data/2]).
 
--export([process_flowsets/2]).
+-export([process_flowsets/2, apply_templates/2]).
 
 -include_lib("netsink/include/netflow.hrl").
 -include_lib("whistle_misc/include/logging.hrl").
@@ -33,6 +33,9 @@ header_version(#netflow_export_header{ver = Ver}) -> Ver.
 process_flowsets(Templates, FlowSets) ->
     process_flowsets(Templates, FlowSets, []).
 
+apply_templates(Templates, Data) ->
+    apply_templates(Templates, Data, [], []).
+
 %% io_lib_pretty:print(Rec, fun netsink:netflow_rec_pp/2)
 
 netflow_rec_pp(netflow_export_header, 6) ->
@@ -52,26 +55,49 @@ update_templates(OldTemplates, [NewTemplate | NewTemplates]) ->
         end,
     update_templates(TemplatesUpdated, NewTemplates).
 
-process_flowsets(Templates0, [FlowSet | FlowSets], ParsedData) ->
+process_flowsets(Templates, [], DataAcc) ->
+    {ok, Templates, DataAcc};
+process_flowsets(Templates0, [FlowSet | FlowSets], DataAcc) ->
     case decode_flowset(FlowSet) of
         {ok, {template, TemplateFlowSet}} ->
             Templates1 = update_templates(Templates0, TemplateFlowSet),
-            process_flowsets(Templates1, FlowSets, ParsedData);
+            process_flowsets(Templates1, FlowSets, DataAcc);
         {ok, {data, TemplateID, RecordsNum, Data}} ->
-            {ok, NetFlowData} = apply_template(Templates0, TemplateID, RecordsNum, Data),
-            process_flowsets(Templates0, FlowSets, [NetFlowData | ParsedData]);
-        Else -> Else
-    end;
-process_flowsets(Templates, [], ParsedData) ->
-    {ok, Templates, ParsedData}.
+            %% {ok, NetFlowData} = apply_template(Templates0, TemplateID, RecordsNum, Data),
+            process_flowsets(
+              Templates0, FlowSets, [{data, TemplateID, RecordsNum, Data}|DataAcc]
+             );
+        {error, Error} ->
+            ?error([?MODULE, process_flowsets, {flowset, FlowSet}, {error, Error}]),
+            process_flowsets(Templates0, FlowSets, DataAcc)
+    end.
 
-apply_template([], _, _, _) ->
-    %% TODO: If theres no templates to use then data should be stored until
-    %% application receives necessary templates
-    {ok, []};
-apply_template(_Templates, TemplateID, RecordsNum, _Data) ->
+apply_template(Templates, TemplateID, RecordsNum, Data) ->
     ?debug([?MODULE, apply_template, {template_id, TemplateID}, {records_num, RecordsNum}]),
-    {ok, []}.
+    case lists:keyfind(TemplateID, #template_rec.id, Templates) of
+        false -> {error, {no_template, TemplateID, RecordsNum, Data}};
+        %% TODO:
+        _Record -> {ok, []}
+    end.
+
+apply_templates(_Templates, [], Processed, Unprocessed) ->
+    {Processed, Unprocessed};
+apply_templates(
+  Templates, [{data, TemplateID, RecordsNum, Data} | DataSet],
+  Processed0, Unprocessed0
+ ) ->
+    case apply_template(Templates, TemplateID, RecordsNum, Data) of
+        {error, {no_template, _, _, _}} ->
+            Unprocessed1 = [{data, TemplateID, RecordsNum, Data} | Unprocessed0],
+            apply_templates(Templates, DataSet, Processed0, Unprocessed1);
+        {error, Error} ->
+            ?error([?MODULE, apply_templates, {error, Error}]),
+            apply_templates(Templates, DataSet, Processed0, Unprocessed0);
+        {ok, ProcessedData} ->
+            Processed1 = [ProcessedData | Processed0],
+            apply_templates(Templates, DataSet, Processed1, Unprocessed0)
+    end.
+
 
 decode_flowset({?NETFLOW_FLOWSET_TEMPLATE_ID, RecordsNum, Template}) ->
     decode_template(RecordsNum, Template);
