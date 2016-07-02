@@ -163,6 +163,18 @@
 -define(MPLS_LABEL_9, 78). % 3
 %% MPLS label at position 10 in the stack
 -define(MPLS_LABEL_10, 79). % 3
+%% destinationMacAddress
+-define(DST_MAC_ADDR, 80). % 6
+%% postSourceMacAddress
+-define(POST_SRC_MAC_ADDR, 81). % 6
+%% postNATSourceIPv4Address
+-define(POST_NAT_SRC_IPV4_ADDR, 225). % 4
+%% postNATDestinationIPv4Address
+-define(POST_NAT_DST_IPV4_ADDR, 226). % 4
+%% postNAPTSourceTransportPort
+-define(POST_NAPT_SRC_TRANSPORT_PORT, 227). % 2
+%% postNAPTDestinationTransportPort
+-define(POST_NAPT_DST_TRANSPORT_PORT, 228). % 2
 
 %% The value field is a numeric identifier for the field type. The
 %% following value fields are reserved for proprietary field types: 25,

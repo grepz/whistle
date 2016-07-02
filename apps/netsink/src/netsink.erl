@@ -4,7 +4,7 @@
 
 -export([packet_header/1, header_version/1, header_src_id/1, packet_data/2]).
 
--export([process_flowsets/2, apply_templates/2]).
+-export([process_flowsets/2, apply_templates/2, apply_template/4]).
 
 -include_lib("netsink/include/netflow.hrl").
 -include_lib("whistle_misc/include/logging.hrl").
@@ -77,8 +77,27 @@ apply_template(Templates, TemplateID, RecordsNum, Data) ->
     case lists:keyfind(TemplateID, #template_rec.id, Templates) of
         false -> {error, {no_template, TemplateID, RecordsNum, Data}};
         %% TODO:
-        _Record -> {ok, []}
+        #template_rec{id = TemplateID, fields = TemplateFields} ->
+            {ok, _DetemplatedData} = apply_template_field_recs(TemplateFields, Data)
     end.
+
+apply_template_field_recs(TemplateFields, Data) ->
+    apply_template_field_recs(TemplateFields, Data, []).
+
+apply_template_field_recs([], _, Acc) -> {ok, Acc};
+apply_template_field_recs(
+  [#template_field_rec{length = Length, type = Type} | TemplateFields], Data, Acc
+ ) ->
+    <<DataField:Length/binary, Rest/binary>> = Data,
+    FormattedData = format_data_field(Type, Length, DataField),
+    apply_template_field_recs(TemplateFields, Rest, [FormattedData | Acc]).
+
+format_data_field(?IN_BYTES, Length, DataField) ->
+    {?IN_BYTES, Length, binary:decode_unsigned(DataField, big)};
+format_data_field(?L4_SRC_PORT, Length, DataField) ->
+    {?L4_SRC_PORT, Length, DataField};
+format_data_field(Type, Length, DataField) ->
+    {Type, Length, DataField}.
 
 apply_templates(_Templates, [], Processed, Unprocessed) ->
     {Processed, Unprocessed};
@@ -124,7 +143,7 @@ decode_template_iter(
           },
     decode_template_iter(Rest1, [TemplateRec | Acc]).
 
-decode_single_template(0, Rest, Acc) -> {Acc, Rest};
+decode_single_template(0, Rest, Acc) -> {lists:reverse(Acc), Rest};
 decode_single_template(
   FieldsCnt,
   <<FieldType:16/big-unsigned-integer, FieldLength:16/big-unsigned-integer, Rest/binary>>,
