@@ -1,6 +1,6 @@
 # [Netflow RFC](https://www.ietf.org/rfc/rfc3954.txt)
 
-## An Export Packet consisting of interleaved Template, Data, and Options Template FlowSets.  Example: a newly created Template is exported as soon as possible.  So if there is already an Export Packet with a Data FlowSet that is being prepared for export, the Template and Option FlowSets are also interleaved with this information, subject to availability of space.
+* An Export Packet consisting of interleaved Template, Data, and Options Template FlowSets.  Example: a newly created Template is exported as soon as possible.  So if there is already an Export Packet with a Data FlowSet that is being prepared for export, the Template and Option FlowSets are also interleaved with this information, subject to availability of space.
 
 Export packet:
 ```
@@ -12,7 +12,7 @@ Export packet:
 |        | +----------+ +---------+     +-----------+ +---------+ |
 +--------+--------------------------------------------------------+
 ```
-## An Export Packet consisting entirely of Data FlowSets.  Example: after the appropriate Template Records have been defined and transmitted to the NetFlow Collector device, the majority of Export Packets consists solely of Data FlowSets.
+* An Export Packet consisting entirely of Data FlowSets.  Example: after the appropriate Template Records have been defined and transmitted to the NetFlow Collector device, the majority of Export Packets consists solely of Data FlowSets.
 
 Export Packet:
 ```
@@ -27,7 +27,7 @@ Export Packet:
 ## Header Format
 
 The Packet Header format is specified as:
-
+```
 | 0 1 2 3 4 5 6 7 | 8 9 0 1 2 3 4 5 | 6 7 8 9 0 1 2 3 | 4 5 6 7 8 9 0 1 |
 |-----------------------------------|-----------------------------------|
 |       Version Number              |            Count                  |
@@ -39,7 +39,7 @@ The Packet Header format is specified as:
 |                            Sequence Number                            |
 |-----------------------------------------------------------------------|
 |                              Source ID                                |
-
+```
 * Version
   Version of Flow Record format exported in this packet.  The value of this field is 9 for the current version.
 
@@ -62,7 +62,7 @@ The Packet Header format is specified as:
 ## Template FlowSet Format
 
 The format of the Template FlowSet is as follows:
-
+```
 | 0 1 2 3 4 5 6 7 | 8 9 0 1 2 3 4 5 | 6 7 8 9 0 1 2 3 | 4 5 6 7 8 9 0 1 |
 |----------------------------------|------------------------------------|
 |       FlowSet ID = 0             |          Length                    |
@@ -93,7 +93,7 @@ The format of the Template FlowSet is as follows:
 |----------------------------------|------------------------------------|
 |                ...               |              ...              |
 |----------------------------------|------------------------------------|
-
+```
 * FlowSet ID
   FlowSet ID value of 0 is reserved for the Template FlowSet.
 
@@ -113,7 +113,7 @@ The format of the Template FlowSet is as follows:
   The length of the corresponding Field Type, in bytes.  Refer to the "Field Type Definitions" section.
 
 ## Data FlowSet Format
-
+```
 | 0 1 2 3 4 5 6 7 | 8 9 0 1 2 3 4 5 | 6 7 8 9 0 1 2 3 | 4 5 6 7 8 9 0 1 |
 |-----------------------------------------------------------------------|
 |   FlowSet ID = Template ID        |          Length                   |
@@ -130,7 +130,7 @@ The format of the Template FlowSet is as follows:
 |-----------------------------------|-----------------------------------|
 |              ...                  |                Padding            |
 |-----------------------------------|-----------------------------------|
-
+```
 Data FlowSet Field Descriptions
 
 * FlowSet ID = Template ID
@@ -155,7 +155,7 @@ The Options Template Record (and its corresponding Options Data Record) is used 
 For example, the Options Template FlowSet can report the sample rate of a specific interface, if sampling is supported, along with thesampling method used.
 
 The format of the Options Template FlowSet follows.
-
+```
 | 0 1 2 3 4 5 6 7 | 8 9 0 1 2 3 4 5 | 6 7 8 9 0 1 2 3 | 4 5 6 7 8 9 0 1 |
 |-----------------------------------|-----------------------------------|
 |       FlowSet ID = 1              |          Length                   |
@@ -172,7 +172,7 @@ The format of the Options Template FlowSet follows.
 |-----------------------------------|-----------------------------------|
 |     Option M Field Length         |           Padding                 |
 |-----------------------------------|-----------------------------------|
-
+```
 Options Template FlowSet Field Definitions
 
 * FlowSet ID = 1
@@ -218,7 +218,7 @@ Options Template FlowSet Field Definitions
 The Options Data Records are sent in Data FlowSets, on a regular basis, but not with every Flow Data Record.  How frequently these Options Data Records are exported is configurable.  See the "Templates Management" section for more details.
 
 The format of the Data FlowSet containing Options Data Records follows.
-
+```
 | 0 1 2 3 4 5 6 7 | 8 9 0 1 2 3 4 5 | 6 7 8 9 0 1 2 3 | 4 5 6 7 8 9 0 1 |
 |-----------------------------------------------------------------------|
 |    FlowSet ID = Template ID       |          Length                   |
@@ -237,7 +237,7 @@ The format of the Data FlowSet containing Options Data Records follows.
 |-----------------------------------|-----------------------------------|
 |              ...                  |            Padding                |
 |-----------------------------------|-----------------------------------|
-
+```
 Options Data Records of the Data FlowSet Field Descriptions
 
 * FlowSet ID = Template ID
