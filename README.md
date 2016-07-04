@@ -41,21 +41,27 @@ The Packet Header format is specified as:
 |                              Source ID                                |
 ```
 * Version
+
   Version of Flow Record format exported in this packet.  The value of this field is 9 for the current version.
 
 * Count
+
   The total number of records in the Export Packet, which is the sum of Options FlowSet records, Template FlowSet records, and Data FlowSet records.
 
 * sysUpTime
+
   Time in milliseconds since this device was first booted.
 
 * UNIX Secs
+
   Time in seconds since 0000 UTC 1970, at which the Export Packet leaves the Exporter.
 
 * Sequence Number
+
   Incremental sequence counter of all Export Packets sent from the current Observation Domain by the Exporter.  This value MUST be cumulative, and SHOULD be used by the Collector to identify whether any Export Packets have been missed.
 
 * Source ID
+
   A 32-bit value that identifies the Exporter Observation Domain. NetFlow Collectors SHOULD use the combination of the source IP address and the Source ID field to separate different export streams originating from the same Exporter.
 
 
@@ -95,21 +101,27 @@ The format of the Template FlowSet is as follows:
 |----------------------------------|------------------------------------|
 ```
 * FlowSet ID
+
   FlowSet ID value of 0 is reserved for the Template FlowSet.
 
 * Length
+
   Total length of this FlowSet.  Because an individual Template FlowSet MAY contain multiple Template Records, the Length value MUST be used to determine the position of the next FlowSet record, which could be any type of FlowSet.  Length is the sum of the lengths of the FlowSet ID, the Length itself, and all Template Records within this FlowSet.
 
 * Template ID
+
   Each of the newly generated Template Records is given a unique Template ID.  This uniqueness is local to the Observation Domain that generated the Template ID.  Template IDs 0-255 are reserved for Template FlowSets, Options FlowSets, and other reserved FlowSets yet to be created.  Template IDs of Data FlowSets are numbered from 256 to 65535.
 
 * Field Count
+
   Number of fields in this Template Record.   Because a Template FlowSet usually contains multiple Template Records, this field allows the Collector to determine the end of the current Template Record and the start of the next.
 
 * Field Type
+
   A numeric value that represents the type of the field.  Refer to the "Field Type Definitions" section.
 
 * Field Length
+
   The length of the corresponding Field Type, in bytes.  Refer to the "Field Type Definitions" section.
 
 ## Data FlowSet Format
@@ -134,14 +146,19 @@ The format of the Template FlowSet is as follows:
 Data FlowSet Field Descriptions
 
 * FlowSet ID = Template ID
+
   Each Data FlowSet is associated with a FlowSet ID.  The FlowSet ID maps to a (previously generated) Template ID.  The Collector MUST use the FlowSet ID to find the corresponding Template Record and decode the Flow Records from the FlowSet.
 
 * Length
+
   The length of this FlowSet.  Length is the sum of the lengths of the FlowSet ID, Length itself, all Flow Records within this FlowSet, and the padding bytes, if any.
 
-* Record N - Field Value M The remainder of the Data FlowSet is a collection of Flow Data Record(s), each containing a set of field values.  The Type and Length of the fields have been previously defined in the Template Record referenced by the FlowSet ID or Template ID.
+* Record N - Field Value M
+
+  The remainder of the Data FlowSet is a collection of Flow Data Record(s), each containing a set of field values.  The Type and Length of the fields have been previously defined in the Template Record referenced by the FlowSet ID or Template ID.
 
 * Padding
+
   The Exporter SHOULD insert some padding bytes so that the subsequent FlowSet starts at a 4-byte aligned boundary.  It is important to note that the Length field includes the padding bytes.  Padding SHOULD be using zeros.
 
 Interpretation of the Data FlowSet format can be done only if the
@@ -176,21 +193,27 @@ The format of the Options Template FlowSet follows.
 Options Template FlowSet Field Definitions
 
 * FlowSet ID = 1
+
   A FlowSet ID value of 1 is reserved for the Options Template.
 
 * Length
+
   Total length of this FlowSet.  Each Options Template FlowSet MAY contain multiple Options Template Records.  Thus, the Length value MUST be used to determine the position of the next FlowSet record, which could be either a Template FlowSet or Data FlowSet. Length is the sum of the lengths of the FlowSet ID, the Length itself, and all Options Template Records within this FlowSet Template ID.
 
 * Template ID
+
   Template ID of this Options Template.  This value is greater than 255.
 
 * Option Scope Length
+
   The length in bytes of any Scope field definition contained in the Options Template Record (The use of "Scope" is described below).
 
 * Option Length
+
   The length (in bytes) of any options field definitions contained in this Options Template Record.
 
 * Scope 1 Field Type
+
   The relevant portion of the Exporter/NetFlow process to which the Options Template Record refers.
   Currently defined values are:
   1 - System
@@ -198,18 +221,23 @@ Options Template FlowSet Field Definitions
   3 - Line Card
   4 - Cache
   5 - Template
-  For example, the NetFlow process can be implemented on a per-interface basis, so if the Options Template Record were reporting on how the NetFlow process is configured, the Scope for the report would be 2 (interface).  The associated interface ID would then be carried in the associated Options Data FlowSet.  The Scope can be limited further by listing multiple scopes that all must match at the same time.  Note that the Scope fields always precede the Option fields.
+
+For example, the NetFlow process can be implemented on a per-interface basis, so if the Options Template Record were reporting on how the NetFlow process is configured, the Scope for the report would be 2 (interface).  The associated interface ID would then be carried in the associated Options Data FlowSet.  The Scope can be limited further by listing multiple scopes that all must match at the same time.  Note that the Scope fields always precede the Option fields.
 
 * Scope 1 Field Length
+
   The length (in bytes) of the Scope field, as it would appear in an Options Data Record.
 
 * Option 1 Field Type
+
   A numeric value that represents the type of field that would appear in the Options Template Record.  Refer to the Field Type Definitions section.
 
 * Option 1 Field Length
+
   The length (in bytes) of the Option field.
 
 * Padding
+
   The Exporter SHOULD insert some padding bytes so that the subsequent FlowSet starts at a 4-byte aligned boundary.  It is important to note that the Length field includes the padding bytes.  Padding SHOULD be using zeros.
 
 
@@ -241,15 +269,19 @@ The format of the Data FlowSet containing Options Data Records follows.
 Options Data Records of the Data FlowSet Field Descriptions
 
 * FlowSet ID = Template ID
+
   A FlowSet ID precedes each group of Options Data Records within a Data FlowSet.  The FlowSet ID maps to a previously generated Template ID corresponding to this Options Template Record.  The Collector MUST use the FlowSet ID to map the appropriate type and length to any field values that follow.
 
 * Length
+
   The length of this FlowSet. Length is the sum of the lengths of the FlowSet ID, Length itself, all the Options Data Records within this FlowSet, and the padding bytes, if any.
 
 * Record N - Option Field M Value
- The remainder of the Data FlowSet is a collection of Flow Records, each containing a set of scope and field values.  The type and length of the fields were previously defined in the Options Template Record referenced by the FlowSet ID or Template ID.
+
+  The remainder of the Data FlowSet is a collection of Flow Records, each containing a set of scope and field values.  The type and length of the fields were previously defined in the Options Template Record referenced by the FlowSet ID or Template ID.
 
 * Padding
+
   The Exporter SHOULD insert some padding bytes so that the subsequent FlowSet starts at a 4-byte aligned boundary.  It is important to note that the Length field includes the padding bytes.  Padding SHOULD be using zeros.
 
 The Data FlowSet format can be interpreted only if the Options Template FlowSet corresponding to the Template ID is available at the Collector.
