@@ -1,4 +1,6 @@
-# [Netflow RFC](https://www.ietf.org/rfc/rfc3954.txt)
+# Netflow protocol description
+
+  [Netflow RFC](https://www.ietf.org/rfc/rfc3954.txt)
 
 * An Export Packet consisting of interleaved Template, Data, and Options Template FlowSets.  Example: a newly created Template is exported as soon as possible.  So if there is already an Export Packet with a Data FlowSet that is being prepared for export, the Template and Option FlowSets are also interleaved with this information, subject to availability of space.
 
@@ -29,7 +31,7 @@ Export Packet:
 The Packet Header format is specified as:
 ```
 | 0 1 2 3 4 5 6 7 | 8 9 0 1 2 3 4 5 | 6 7 8 9 0 1 2 3 | 4 5 6 7 8 9 0 1 |
-|-----------------------------------|-----------------------------------|
+|-----------------------------------------------------------------------|
 |       Version Number              |            Count                  |
 |-----------------------------------------------------------------------|
 |                               sysUpTime                               |
@@ -73,31 +75,31 @@ The format of the Template FlowSet is as follows:
 |----------------------------------|------------------------------------|
 |       FlowSet ID = 0             |          Length                    |
 |----------------------------------|------------------------------------|
-|         Template ID 256          |         Field Count           |
+|         Template ID 256          |         Field Count                |
 |----------------------------------|------------------------------------|
-|           Field Type 1           |         Field Length 1        |
+|           Field Type 1           |         Field Length 1             |
 |----------------------------------|------------------------------------|
-|           Field Type 2           |         Field Length 2        |
+|           Field Type 2           |         Field Length 2             |
 |----------------------------------|------------------------------------|
-|                ...               |              ...              |
+|                ...               |              ...                   |
 |----------------------------------|------------------------------------|
-|           Field Type N           |         Field Length N        |
+|           Field Type N           |         Field Length N             |
 |----------------------------------|------------------------------------|
-|         Template ID 257          |         Field Count           |
+|         Template ID 257          |         Field Count                |
 |----------------------------------|------------------------------------|
-|           Field Type 1           |         Field Length 1        |
+|           Field Type 1           |         Field Length 1             |
 |----------------------------------|------------------------------------|
-|           Field Type 2           |         Field Length 2        |
+|           Field Type 2           |         Field Length 2             |
 |----------------------------------|------------------------------------|
-|                ...               |              ...              |
+|                ...               |              ...                   |
 |----------------------------------|------------------------------------|
-|           Field Type M           |         Field Length M        |
+|           Field Type M           |         Field Length M             |
 |----------------------------------|------------------------------------|
-|                ...               |              ...              |
+|                ...               |              ...                   |
 |----------------------------------|------------------------------------|
-|           Template ID K          |         Field Count           |
+|           Template ID K          |         Field Count                |
 |----------------------------------|------------------------------------|
-|                ...               |              ...              |
+|                ...               |              ...                   |
 |----------------------------------|------------------------------------|
 ```
 * FlowSet ID
@@ -216,11 +218,12 @@ Options Template FlowSet Field Definitions
 
   The relevant portion of the Exporter/NetFlow process to which the Options Template Record refers.
   Currently defined values are:
-  1 - System
-  2 - Interface
-  3 - Line Card
-  4 - Cache
-  5 - Template
+
+  1. System
+  2. Interface
+  3. Line Card
+  4. Cache
+  5. Template
 
 For example, the NetFlow process can be implemented on a per-interface basis, so if the Options Template Record were reporting on how the NetFlow process is configured, the Scope for the report would be 2 (interface).  The associated interface ID would then be carried in the associated Options Data FlowSet.  The Scope can be limited further by listing multiple scopes that all must match at the same time.  Note that the Scope fields always precede the Option fields.
 

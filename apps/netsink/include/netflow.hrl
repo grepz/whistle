@@ -188,6 +188,7 @@
 
 -record(template_rec, {
           id :: non_neg_integer(),
+          fields_len :: non_neg_integer(),
           fields :: [#template_field_rec{}]
          }).
 
