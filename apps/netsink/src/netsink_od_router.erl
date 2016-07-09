@@ -26,15 +26,15 @@
 -include_lib("whistle_misc/include/logging.hrl").
 -include_lib("netsink/include/netsink.hrl").
 
+-record(od_worker, {pid = undefined, status = ready, od = undefined}).
+
 -record(state, {
           workers_sup :: pid(),
-          od_workers_queue :: queue(),
-          od_workers_binded :: dict(),
+          od_workers_queue :: queue:queue(#od_worker{}),
+          od_workers_binded :: dict:dict({integer(), inet:ip_address()}, #od_worker{}),
           pool_sz :: non_neg_integer()
          }
        ).
-
--record(od_worker, {pid = undefined, status = ready, od = undefined}).
 
 %%%===================================================================
 %%% API

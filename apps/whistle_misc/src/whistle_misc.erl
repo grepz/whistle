@@ -30,9 +30,15 @@ log(Lvl, LogMessage) ->
     {Fmt, Args} = log_format(LogMessage, [], []),
     log_message(Lvl, Fmt, Args).
 
+-ifdef(time_correction).
+now() ->
+    {MegaS, S, _MicroS} = erlang:timestamp(),
+    MegaS * 1000000 + S.
+-else.
 now() ->
     {MegaS, S, _MicroS} = erlang:now(),
     MegaS * 1000000 + S.
+-endif.
 
 local_time_to_seconds(LDT) ->
     calendar:datetime_to_gregorian_seconds(LDT) - ?SECONDS1970.
@@ -69,13 +75,13 @@ log_message(Level, Fmt, Args) ->
     Out = lager_trunc_io:format(Fmt, Args, ?TRUNC_LEN),
     ok = lager:log(Level, self(), Out, []).
 
-%% log_message(debug, Fmt, Args) ->
-%%     ok = lager:debug(Fmt, Args);
-%% log_message(error, Fmt, Args) ->
-%%     ok = lager:error(Fmt, Args);
-%% log_message(info, Fmt, Args) ->
-%%     ok = lager:log(Fmt, Args);
-%% log_message(_, _, _) -> ok.
+%% %% log_message(debug, Fmt, Args) ->
+%% %%     ok = lager:debug(Fmt, Args);
+%% %% log_message(error, Fmt, Args) ->
+%% %%     ok = lager:error(Fmt, Args);
+%% %% log_message(info, Fmt, Args) ->
+%% %%     ok = lager:log(Fmt, Args);
+%% %% log_message(_, _, _) -> ok.
 
 log_format([], Fmt, Args) ->
     {string:join(lists:reverse(Fmt), ", "), lists:reverse(Args)};

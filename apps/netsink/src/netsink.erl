@@ -20,7 +20,7 @@ packet_data(?NETFLOW_V9, Data) ->
 packet_data(?NETFLOW_V5, Data) ->
     parse_packet_data_v5(Data).
 
-header_src_id(#netflow_export_header{src_id = Ver}) -> Ver.
+header_src_id(#netflow_export_header{src_id = SrcID}) -> SrcID.
 
 header_version(#netflow_export_header{ver = Ver}) -> Ver.
 
