@@ -206,4 +206,11 @@
           data :: term()
          }).
 
+-record(netflow_type_formatter, {
+          name :: list(),
+          type_id :: non_neg_integer(),
+          formatter_clause :: atom()
+         }).
+
+
 -endif. % include_netsink_netflow_hrl
