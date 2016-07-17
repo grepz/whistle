@@ -8,8 +8,8 @@
 %%%-------------------------------------------------------------------
 -module(test).
 
--define(CONFIG_1, "/Users/grepz/tmp/1.cfg").
--define(CONFIG_2, "/Users/grepz/tmp/2.cfg").
+-define(CONFIG_1, "etc/netflow/id_binds.cfg").
+-define(CONFIG_2, "etc/netflow/user_types.cfg").
 
 %% API
 -export([config1/0, config2/0, user_types_generate/0]).
@@ -19,12 +19,11 @@
 %%%===================================================================
 
 config1() ->
-    {ok, Terms} = file:consule(?CONFIG_1),
+    {ok, Terms} = file:consult(?CONFIG_1),
     Terms.
 
 config2() ->
-    C = config(?CONFIG_2),
-    lists:map(fun config2_entity_to_rec/1, C).
+    user_types_generate().
 
 config(Config) ->
     {ok, Bin} = file:read_file(Config),
@@ -40,8 +39,9 @@ config(Config) ->
     end.
 
 user_types_generate() ->
-    ConfigExprs = config2_entity_to_rec(?CONFIG_2),
-    FuncAST = user_types_eval(ConfigExprs),
+    Exprs = config(?CONFIG_2),
+    ExprsParsed = lists:map(fun config2_entity_parse/1, Exprs),
+    FuncAST = user_types_eval(ExprsParsed),
     ok = user_types_compile_and_load(FuncAST).
 
 %%--------------------------------------------------------------------
@@ -54,7 +54,7 @@ user_types_generate() ->
 %%% Internal functions
 %%%===================================================================
 
-config2_entity_to_rec(E) ->
+config2_entity_parse(E) ->
     tuple = erl_syntax:type(E),
     3 = erl_syntax:tuple_size(E),
     [IDExpr, DescrExpr, FunExpr] = erl_syntax:tuple_elements(E),
@@ -64,14 +64,6 @@ config2_entity_to_rec(E) ->
     2 = erl_syntax:fun_expr_arity(FunExpr),
     Clauses = erl_syntax:fun_expr_clauses(FunExpr),
     {ID, Descr, Clauses}.
-
-%% config1_entity_to_rec(E) ->
-%%     tuple = erl_syntax:type(E),
-%%     2 = erl_suntax:tuple_size(E),
-%%     [IDExpr, TypeNameExpr] = erl_syntax:tuple_elements(E),
-%%     {value, ID, _} = erl_eval:expr(IDExpr, []),
-%%     {value, TypeName, _} = erl_eval:expr(TypeNameExpr, []),
-%%     {ID, TypeName}.
 
 user_types_eval(ConfigExprs) ->
     FClauses =
