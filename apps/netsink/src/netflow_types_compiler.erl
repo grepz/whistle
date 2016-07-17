@@ -66,12 +66,12 @@ netflow_formatter_recs([E|Elements]) ->
 formatter_conf_value_to_rec(Value) ->
     tuple = erl_syntax:type(Value),
     3 = erl_syntax:tuple_size(Value),
-    [ExprTypeName, ExprTypeID, ExprFormatter] = erl_syntax:tuple_elements(Value),
+    [ExprTypeName, ExprTypeID, ExprFormatterFun] = erl_syntax:tuple_elements(Value),
     {value, TypeName, _} = erl_eval:expr(ExprTypeName, []),
     {value, TypeID, _}  = erl_eval:expr(ExprTypeID, []),
-    fun_expr = erl_syntax:type(ExprFormatter),
-    1 = erl_syntax:fun_expr_arity(ExprFormatter),
-    [Clause] = erl_syntax:fun_expr_clauses(ExprFormatter),
+    fun_expr = erl_syntax:type(ExprFormatterFun),
+    1 = erl_syntax:fun_expr_arity(ExprFormatterFun),
+    [Clause] = erl_syntax:fun_expr_clauses(ExprFormatterFun),
     #netflow_type_formatter{name = TypeName, type_id = TypeID, formatter_clause = Clause}.
 
 
@@ -90,11 +90,11 @@ netflow_data_format_ast_code(Recs) ->
         lists:flatten(
           lists:map(
             fun (#netflow_type_formatter{name = _Name, type_id = _ID, formatter_clause = Clause}) ->
-                    ClausePatterns = erl_syntax:clause_patterns(Clause),
+                    _ClausePatterns = erl_syntax:clause_patterns(Clause),
                     ClauseGuard = erl_syntax:clause_guard(Clause),
                     ClauseBody = erl_syntax:clause_body(Clause),
                     %% erl_syntax:atom(Name), erl_syntax:integer(ID),
-                    erl_syntax:clause([ClausePatterns], ClauseGuard, ClauseBody)
+                    erl_syntax:clause([], ClauseGuard, ClauseBody)
             end, Recs)
          ),
     Func = erl_syntax:function(
