@@ -4,14 +4,14 @@
 %%% @doc
 %%%
 %%% @end
-%%% Created : 10 Jul 2016 by Stanislav M. Ivankin <lessgrep@gmail.com>
+%%% Created : 19 Jul 2016 by Stanislav M. Ivankin <lessgrep@gmail.com>
 %%%-------------------------------------------------------------------
--module(netsink_fmt).
+-module(netsink_types_mgr).
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/1]).
+-export([start_link/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -19,7 +19,10 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {
+          user_types_cfg = undefined,
+          types_bind_cfg = undefined
+         }).
 
 %%%===================================================================
 %%% API
@@ -32,8 +35,8 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start_link(Conf) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [Conf], []).
+start_link(UserTypes, TypesBind) ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, {UserTypes, TypesBind}, []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -50,7 +53,7 @@ start_link(Conf) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([_Conf]) ->
+init({_UserTypes, _TypesBind}) ->
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
