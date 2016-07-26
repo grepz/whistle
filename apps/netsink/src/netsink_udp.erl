@@ -154,4 +154,4 @@ route_packet(Addr, Header, Data) ->
     SrcID = netsink:header_src_id(Header),
     Ver = netsink:header_version(Header),
     ?debug([?MODULE, route_packet, {version, Ver}, {src_id, SrcID}, {addr, Addr}]),
-    ok = gen_server:cast(netsink_od_router, ?route_packet({SrcID, Addr}, Header, Data)).
+    netsink_od_router:route_packet({SrcID, Addr}, Header, Data).

@@ -17,7 +17,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([set_types/2]).
+-export([set_types/2, data_process/3]).
 
 -define(SERVER, ?MODULE).
 
@@ -34,6 +34,9 @@
           templates = []}
        ).
 
+-define(worker_set_types(Types), {set_types, Types}).
+-define(worker_data_process(Header, Data), {worker_data_process, Header, Data}).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
@@ -41,6 +44,10 @@
 -spec set_types(Pid :: pid(), Types :: list:list(term())) -> ok | {error, term()}.
 set_types(Pid, Types) ->
     gen_server:call(Pid, ?worker_set_types(Types)).
+
+-spec data_process(Pid :: pid(), Header :: binary(), Data :: binary()) -> ok.
+data_process(Pid, Header, Data) ->
+    ok = gen_server:cast(Pid, ?worker_data_process(Header, Data)).
 
 
 %%--------------------------------------------------------------------

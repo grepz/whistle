@@ -32,6 +32,9 @@
 
 -define(get_types_timeout, 10000).
 
+-define(get_types(), get_types).
+-define(reload_types(Types), {reload_types, Types}).
+
 %%%===================================================================
 %%% API
 %%%===================================================================

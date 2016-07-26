@@ -19,16 +19,20 @@
 
 -export([start_worker/2, stop_watcher/0]).
 -export([is_worker_binded/1, worker_status/1]).
+-export([renew_workers_bind_types/1, route_packet/3]).
 
 -define(SERVER, ?MODULE).
+
 -define(od_watcher_shutdown(Reason), {od_watcher_shutdown, Reason}).
+-define(renew_workers_bind_types(Types), {renew_workers_bind_types, Types}).
+-define(route_packet(ODID, Header, Data), {route_packet, ODID, Header, Data}).
 
 -include_lib("whistle_misc/include/logging.hrl").
 -include_lib("netsink/include/netsink.hrl").
 
 -record(od_worker, {pid = undefined, status = ready, od = undefined}).
 
--record(state, {
+-record(s, {
           workers_sup :: pid(),
           od_workers_queue :: queue:queue(#od_worker{}),
           od_workers_binded :: dict:dict({integer(), inet:ip_address()}, #od_worker{}),
@@ -40,6 +44,14 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+-spec renew_workers_bind_types(list:list(term())) -> ok | {error, list:list(term())}.
+renew_workers_bind_types(Types) ->
+    gen_server:call(?MODULE, ?renew_workers_bind_types(Types)).
+
+-spec route_packet(ODID :: {term(), term()}, Header :: binary(), Data :: binary()) -> ok.
+route_packet(ODID, Header, Data) ->
+    ok = gen_server:cast(?MODULE, ?route_packet(ODID, Header, Data)).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -71,7 +83,7 @@ init([ODPoolSz, Sup]) ->
     {ok, Types} = netsink_types_mgr:get_types(),
     false = process_flag(trap_exit, true),
     Workers = start_worker_pool(ODPoolSz, Sup),
-    {ok, #state{
+    {ok, #s{
             workers_sup = Sup,
             od_workers_queue = queue:from_list(Workers),
             od_workers_binded = dict:new(),
@@ -93,11 +105,42 @@ init([ODPoolSz, Sup]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call(?od_watcher_shutdown(Reason), From, State = #state{}) ->
+handle_call(?od_watcher_shutdown(Reason), From, State = #s{}) ->
     ?info([?MODULE, handle_call, ?od_watcher_shutdown(Reason), {from, From}]),
     %% NOTE: No proper shutdown strategy is defined for workers right now
     %% Kill everyting that is linked to a process
     {stop, not_normal, shutdown_ok, State};
+handle_call(
+  ?renew_workers_bind_types(Types), _From,
+  State = #s{od_workers_binded = BindedWorkers}
+ ) ->
+    ?debug([?MODULE, handle_call, renew_workers_bind_types, {types, Types}]),
+    Result =
+        lists:fold(
+          fun (#od_worker{pid = WorkerPid}, Acc) ->
+                  case netsink_od_worker:set_types(WorkerPid, Types) of
+                      ok ->
+                          ?debug(
+                             [?MODULE, handle_call, renew_workers_bind_types, ok,
+                              {pid, WorkerPid}]
+                            ),
+                          Acc;
+                      {error, Reason} ->
+                          ?error(
+                             [?MODULE, handle_call, renew_workers_bind_types,
+                              {error, Reason}]
+                            ),
+                          [{WorkerPid, Reason} | Acc]
+                  end
+          end, [], dict:to_list(BindedWorkers)),
+    case Result of
+        [] ->
+            {reply, ok, State#s{types = Types}};
+        _ ->
+            %% TODO: Should do some sort of transaction handling, if error occured,
+            %% revert worker bind types to its old state
+            {reply, {error, Result}, State#s{types = Types}}
+    end;
 handle_call(Request, From, State) ->
     ?debug([?MODULE, handle_call, {req, Request}, {from, From}]),
     Reply = ok,
@@ -115,7 +158,7 @@ handle_call(Request, From, State) ->
 %%--------------------------------------------------------------------
 handle_cast(
   ?route_packet(ODID, Header, Data),
-  State = #state{
+  State = #s{
              od_workers_binded = Binded0,
              od_workers_queue = Queue0,
              pool_sz = PoolSz,
@@ -132,7 +175,7 @@ handle_cast(
             case ensure_bind_worker(ODID, Types, Queue0, Binded0, PoolSz, WorkersSup) of
                 {ok, {Queue1, Binded1, ODWorker}} ->
                     ok = push_to_worker(ODWorker, Header, Data),
-                    {noreply, State#state{
+                    {noreply, State#s{
                                 od_workers_binded = Binded1,
                                 od_workers_queue = Queue1
                                }};
@@ -157,7 +200,7 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info(
   {'EXIT', WorkerPidExited, Reason},
-  State = #state{
+  State = #s{
      od_workers_queue = WorkersQueue0,
      od_workers_binded = WorkersBinded0
     }
@@ -165,7 +208,7 @@ handle_info(
     ?info([?MODULE, handle_info, worker_exit, {worker_pid, WorkerPidExited}, {reason, Reason}]),
     case cleanup_pool_queue(WorkerPidExited, WorkersQueue0) of
         {true, WorkersQueue1} ->
-            {noreply, State#state{od_workers_queue = WorkersQueue1}};
+            {noreply, State#s{od_workers_queue = WorkersQueue1}};
         {false, _} ->
             WorkersBinded1 =
                 dict:fold(
@@ -175,7 +218,7 @@ handle_info(
                               false -> [Worker | Acc]
                           end
                   end, dict:new(), WorkersBinded0),
-            {noreply, State#state{od_workers_binded = WorkersBinded1}}
+            {noreply, State#s{od_workers_binded = WorkersBinded1}}
     end;
 handle_info(Info, State) ->
     ?debug([?MODULE, handle_info, {info, Info}]),
@@ -273,4 +316,4 @@ bind_worker(ODID, Types, Queue0, Binded0) ->
     end.
 
 push_to_worker(#od_worker{pid = Pid}, Header, Data) ->
-    ok = gen_server:cast(Pid, ?worker_data_process(Header, Data)).
+    ok = netsink_od_worker:data_process(Pid, Header, Data).
