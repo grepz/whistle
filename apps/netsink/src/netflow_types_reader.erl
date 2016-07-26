@@ -10,7 +10,7 @@
 
 %% API
 
--export([netflow_types_bind/1, netflow_user_types/1]).
+-export([types_bind/1, user_types/1]).
 
 -include_lib("netsink/include/netflow.hrl").
 
@@ -18,11 +18,12 @@
 %%% API
 %%%===================================================================
 
-netflow_types_bind(Conf) ->
-    {ok, Terms} = file:consult(Conf),
-    Terms.
+-spec types_bind(Conf :: string()) -> term().
+types_bind(Conf) ->
+    {ok, _Terms} = file:consult(Conf).
 
-netflow_user_types(Conf) ->
+-spec user_types(Conf :: string()) -> ok.
+user_types(Conf) ->
     Exprs = user_types_config(Conf),
     ExprsParsed = lists:map(fun user_types_parse/1, Exprs),
     FuncAST = user_types_eval(ExprsParsed),
@@ -39,7 +40,7 @@ user_types_compile_and_load(UserTypesFuncAST) ->
          {attribute, 0, export, [{user_type, 3}]},
          UserTypesFuncAST
         ],
-    parse_trans_mod:compile_and_load_forms(Forms).
+    ok = parse_trans_mod:compile_and_load_forms(Forms).
 
 user_types_eval(ConfigExprs) ->
     FClauses =

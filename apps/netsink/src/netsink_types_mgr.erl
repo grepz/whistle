@@ -17,16 +17,39 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-export([reload_types_bind/0, reload_user_types/0, reload_types/0]).
+
 -define(SERVER, ?MODULE).
 
--record(state, {
+-record(s, {
           user_types_cfg = undefined,
           types_bind_cfg = undefined
          }).
 
+-include_lib("whistle_misc/include/logging.hrl").
+-include_lib("netsink/include/netsink.hrl").
+
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+-spec reload_types() -> ok | {error, term()}.
+reload_types() ->
+    case reload_user_types() of
+        ok ->
+            Result = reload_types_bind(),
+            ?debug([?MODULE, reload_types, {result, Result}]),
+            Result;
+        Error ->
+            ?debug([?MODULE, reload_types, {error, Error}]),
+            Error
+    end.
+
+reload_types_bind() ->
+    gen_server:call(?MODULE, ?reload_types(types_bind)).
+
+reload_user_types() ->
+    gen_server:call(?MODULE, ?reload_types(user_types)).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -53,8 +76,8 @@ start_link(UserTypes, TypesBind) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init({_UserTypes, _TypesBind}) ->
-    {ok, #state{}}.
+init({UserTypes, TypesBind}) ->
+    {ok, #s{types_bind_cfg = TypesBind, user_types_cfg = UserTypes}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -70,6 +93,40 @@ init({_UserTypes, _TypesBind}) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call(
+  ?reload_types(types_bind), _From, State = #s{types_bind_cfg = UserBindCfg}
+ ) ->
+    ?debug([?MODULE, handle_call, reload_types, types_bind]),
+    Result =
+        try
+            {ok, _Terms} = netflow_types_reader:types_bind(UserBindCfg)
+        catch Error:Reason ->
+                ?error(
+                   [?MODULE, handle_call, user_types, {error, Error},
+                    {reason, Reason}, {stack, erlang:get_stacktrace()}]
+                  ),
+            {error, Reason}
+        end,
+    {reply, Result, State};
+handle_call(
+  ?reload_types(user_types), _From, State = #s{user_types_cfg = UserTypesCfg}
+ ) ->
+    ?debug([?MODULE, handle_call, reload_types, user_types]),
+    Result =
+        try
+            ok = netflow_types_reader:user_types(UserTypesCfg)
+        catch Error:Reason ->
+                ?error(
+                   [?MODULE, handle_call, user_types, {error, Error},
+                    {reason, Reason}, {stack, erlang:get_stacktrace()}]
+                  ),
+            {error, Reason}
+        end,
+    {reply, Result, State};
+handle_call(?reload_types(Type), _From, State) ->
+    ?error([?MODULE, handle_call, reload_types, {unknown_type, Type}]),
+    Reply = error,
+    {reply, Reply, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
