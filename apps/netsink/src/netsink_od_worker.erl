@@ -17,6 +17,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-export([set_types/2]).
+
 -define(SERVER, ?MODULE).
 
 -define(STATUS_INIT, worker_init).
@@ -24,9 +26,10 @@
 -include_lib("whistle_misc/include/logging.hrl").
 -include_lib("netsink/include/netsink.hrl").
 
--record(state, {
+-record(s, {
           watcher = undefined,
           idx = undefined,
+          types = [],
           unprocessed = [],
           templates = []}
        ).
@@ -35,6 +38,9 @@
 %%% API
 %%%===================================================================
 
+-spec set_types(Pid :: pid(), Types :: list:list(term())) -> ok | {error, term()}.
+set_types(Pid, Types) ->
+    gen_server:call(Pid, ?worker_set_types(Types)).
 
 
 %%--------------------------------------------------------------------
@@ -66,7 +72,7 @@ init([ODWatcher, Idx]) ->
     ?info([?MODULE, init, "Starting OD worker.",
            {idx, Idx}, {od_watcher, ODWatcher}, {worker, self()}
           ]),
-    {ok, #state{watcher = ODWatcher, idx = Idx}}.
+    {ok, #s{watcher = ODWatcher, idx = Idx}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -82,6 +88,9 @@ init([ODWatcher, Idx]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call(?worker_set_types(Types), _From, State) ->
+    ?debug([?MODULE, handle_call, worker_set_types, {types, Types}]),
+    {reply, ok, State#s{types = Types}};
 handle_call(Request, _From, State) ->
     ?debug([?MODULE, handle_call, {req, Request}]),
     {reply, ok, State}.
@@ -98,7 +107,7 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast(
   ?worker_data_process(Header, Data),
-  State = #state{templates = Templates0, unprocessed = Unprocessed0}
+  State = #s{templates = Templates0, unprocessed = Unprocessed0, types = _Types}
  ) ->
 %%    ?debug([?MODULE, handle_cast, worker_data_process, {header, Header}, {data, Data}]),
     case netsink:packet_data(netsink:header_version(Header), Data) of
@@ -112,7 +121,7 @@ handle_cast(
                       ),
                     Unprocessed1 = lists:concat([Unprocessed0, NetFlowData0]),
                     {_Processed, Unprocessed2} = netsink:apply_templates(Templates1, Unprocessed1),
-                    {noreply, State#state{templates = Templates1, unprocessed = Unprocessed2}};
+                    {noreply, State#s{templates = Templates1, unprocessed = Unprocessed2}};
                 {error, Reason} ->
                     ?error([?MODULE, handle_cast, worker_data_process, {error, Reason}])
             end;

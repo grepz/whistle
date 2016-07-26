@@ -17,21 +17,28 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--export([reload_types_bind/0, reload_user_types/0, reload_types/0]).
+-export([reload_types_bind/0, reload_user_types/0, reload_types/0, get_types/0]).
 
 -define(SERVER, ?MODULE).
 
 -record(s, {
           user_types_cfg = undefined,
-          types_bind_cfg = undefined
+          types_bind_cfg = undefined,
+          types = []
          }).
 
 -include_lib("whistle_misc/include/logging.hrl").
 -include_lib("netsink/include/netsink.hrl").
 
+-define(get_types_timeout, 10000).
+
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+-spec get_types() -> {ok, [term()]}.
+get_types() ->
+    gen_server:call(?MODULE, ?get_types(), ?get_types_timeout).
 
 -spec reload_types() -> ok | {error, term()}.
 reload_types() ->
@@ -45,9 +52,11 @@ reload_types() ->
             Error
     end.
 
+-spec reload_types_bind() -> {ok, [term()]} | {error, term()}.
 reload_types_bind() ->
     gen_server:call(?MODULE, ?reload_types(types_bind)).
 
+-spec reload_user_types() -> ok | {error, term()}.
 reload_user_types() ->
     gen_server:call(?MODULE, ?reload_types(user_types)).
 
@@ -77,7 +86,10 @@ start_link(UserTypes, TypesBind) ->
 %% @end
 %%--------------------------------------------------------------------
 init({UserTypes, TypesBind}) ->
-    {ok, #s{types_bind_cfg = TypesBind, user_types_cfg = UserTypes}}.
+    ?info([?MODULE, init, {user_types, UserTypes}, {types_bind, TypesBind}]),
+    ok = netflow_types_reader:user_types(UserTypes),
+    {ok, Types} = netflow_types_reader:types_bind(TypesBind),
+    {ok, #s{types_bind_cfg = TypesBind, user_types_cfg = UserTypes, types = Types}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -127,6 +139,9 @@ handle_call(?reload_types(Type), _From, State) ->
     ?error([?MODULE, handle_call, reload_types, {unknown_type, Type}]),
     Reply = error,
     {reply, Reply, State};
+handle_call(?get_types(), From, State = #s{types = Types}) ->
+    ?debug([?MODULE, handle_call, get_types, {from, From}, {types, Types}]),
+    {reply, {ok, Types}, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.

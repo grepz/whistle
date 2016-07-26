@@ -32,6 +32,7 @@
           workers_sup :: pid(),
           od_workers_queue :: queue:queue(#od_worker{}),
           od_workers_binded :: dict:dict({integer(), inet:ip_address()}, #od_worker{}),
+          types :: list:list(term()),
           pool_sz :: non_neg_integer()
          }
        ).
@@ -67,12 +68,14 @@ start_link(Arg1, Arg2) ->
 %%--------------------------------------------------------------------
 init([ODPoolSz, Sup]) ->
     ?info([?MODULE, init, "Starting OD watcher process", {od_pool_sz, ODPoolSz}, {workers_sup, Sup}]),
+    {ok, Types} = netsink_types_mgr:get_types(),
     false = process_flag(trap_exit, true),
     Workers = start_worker_pool(ODPoolSz, Sup),
     {ok, #state{
             workers_sup = Sup,
             od_workers_queue = queue:from_list(Workers),
             od_workers_binded = dict:new(),
+            types = Types,
             pool_sz = ODPoolSz
            }}.
 
@@ -116,6 +119,7 @@ handle_cast(
              od_workers_binded = Binded0,
              od_workers_queue = Queue0,
              pool_sz = PoolSz,
+             types = Types,
              workers_sup = WorkersSup
             }
  ) ->
@@ -125,12 +129,17 @@ handle_cast(
             ok = push_to_worker(ODWorker, Header, Data),
             {noreply, State};
         error ->
-            {Queue1, Binded1, ODWorker} = ensure_bind_worker(ODID, Queue0, Binded0, PoolSz, WorkersSup),
-            ok = push_to_worker(ODWorker, Header, Data),
-            {noreply, State#state{
-                        od_workers_binded = Binded1,
-                        od_workers_queue = Queue1
-                       }}
+            case ensure_bind_worker(ODID, Types, Queue0, Binded0, PoolSz, WorkersSup) of
+                {ok, {Queue1, Binded1, ODWorker}} ->
+                    ok = push_to_worker(ODWorker, Header, Data),
+                    {noreply, State#state{
+                                od_workers_binded = Binded1,
+                                od_workers_queue = Queue1
+                               }};
+                {error, Reason} ->
+                    ?error([?MODULE, handle_cast, route_packet, dropping, {error, Reason}]),
+                    {noreply, State}
+            end
     end;
 handle_cast(Msg, State) ->
     ?debug([?MODULE, handle_cast, {msg, Msg}]),
@@ -218,10 +227,10 @@ worker_status(#od_worker{status = Status}) -> Status.
 start_worker_pool(PoolSz, Sup) ->
     start_worker_pool(PoolSz, Sup, []).
 
-start_worker_pool(0, _, Workers) -> Workers;
+start_worker_pool(0, _Sup, Workers) -> Workers;
 start_worker_pool(PoolSz, Sup, Workers) ->
     WorkerPid = start_worker(Sup, PoolSz),
-    Worker = #od_worker{ pid = WorkerPid },
+    Worker = #od_worker{pid = WorkerPid},
     start_worker_pool(PoolSz - 1, Sup, [Worker | Workers]).
 
 cleanup_pool_queue(Pid, Queue) ->
@@ -239,21 +248,26 @@ cleanup_pool_queue(Pid, Queue) ->
         false -> {Found, Queue}
     end.
 
-ensure_bind_worker(ODID, Queue0, Binded0, PoolSz, WorkersSup) ->
-    case bind_worker(ODID, Queue0, Binded0) of
-        {ok, Result} -> Result;
+ensure_bind_worker(ODID, Types, Queue0, Binded0, PoolSz, WorkersSup) ->
+    case bind_worker(ODID, Types, Queue0, Binded0) of
+        {ok, Result} -> {ok, Result};
         {error, wpool_empty} ->
             Queue1 = queue:from_list(start_worker_pool(PoolSz, WorkersSup)),
-            {ok, Result} = bind_worker(ODID, Queue1, Binded0),
-            Result
+            {_Result, _Details} = bind_worker(ODID, Types, Queue1, Binded0);
+        Else -> Else
     end.
 
-bind_worker(ODID, Queue0, Binded0) ->
+bind_worker(ODID, Types, Queue0, Binded0) ->
     case queue:out(Queue0) of
-        {{value, ODWorker0}, Queue1} ->
-            ODWorker1 = ODWorker0#od_worker{od = ODID},
-            Binded1 = dict:store(ODID, ODWorker1, Binded0),
-            {ok, {Queue1, Binded1, ODWorker1}};
+        {{value, ODWorker0 = #od_worker{pid = WorkerPid}}, Queue1} ->
+            case netsink_od_worker:set_types(WorkerPid, Types) of
+                ok ->
+                    ODWorker1 = ODWorker0#od_worker{od = ODID},
+                    Binded1 = dict:store(ODID, ODWorker1, Binded0),
+                    {ok, {Queue1, Binded1, ODWorker1}};
+                {error, Reason} ->
+                    {error, {set_types, Reason}}
+            end;
         {empty, _} ->
             {error, wpool_empty}
     end.
