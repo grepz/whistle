@@ -24,7 +24,9 @@ types_bind(Conf) ->
 
 -spec user_types(Conf :: string()) -> ok.
 user_types(Conf) ->
-    Exprs = user_types_config(Conf),
+    {ok, ConfBin} = file:read_file(Conf),
+    ConfStr = binary_to_list(ConfBin),
+    Exprs = erl_scan_str(ConfStr),
     ExprsParsed = lists:map(fun user_types_parse/1, Exprs),
     FuncAST = user_types_eval(ExprsParsed),
     ok = user_types_compile_and_load(FuncAST).
@@ -43,9 +45,10 @@ user_types_compile_and_load(UserTypesFuncAST) ->
     ok = parse_trans_mod:compile_and_load_forms(Forms).
 
 user_types_eval(ConfigExprs) ->
-    FClauses =
+    FClauses0 =
         lists:flatten(
-          [[
+          [
+           [
             begin
                 Vars = erl_syntax:clause_patterns(Clause),
                 ClauseGuard = erl_syntax:clause_guard(Clause),
@@ -54,7 +57,12 @@ user_types_eval(ConfigExprs) ->
                   [erl_syntax:integer(ID) | Vars], ClauseGuard, ClauseBody)
             end || Clause <- Clauses ]
            || {ID, _Descr, Clauses} <- ConfigExprs]),
-    Func = erl_syntax:function(erl_syntax:atom(user_type), FClauses),
+    FClauses1 = [
+                 erl_syntax:clause(
+                   [erl_syntax:variable('_'), erl_syntax:variable('_'), erl_syntax:variable('_')],
+                   none, [erl_syntax:atom(no_match)]
+                  ) | FClauses0],
+    Func = erl_syntax:function(erl_syntax:atom(user_type), lists:reverse(FClauses1)),
     _FReady = erl_syntax:revert(Func).
 
 user_types_parse(E) ->
@@ -68,9 +76,8 @@ user_types_parse(E) ->
     Clauses = erl_syntax:fun_expr_clauses(FunExpr),
     {ID, Descr, Clauses}.
 
-user_types_config(Config) ->
-    {ok, Bin} = file:read_file(Config),
-    {ok, ErlTokens, _} = erl_scan:string(binary_to_list(Bin)),
+erl_scan_str(Str) when is_list(Str) ->
+    {ok, ErlTokens, _} = erl_scan:string(Str),
     TopExprs =
         case erl_parse:parse_exprs(ErlTokens) of
             {error, _} -> throw(config_error);
