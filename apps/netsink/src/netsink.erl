@@ -4,7 +4,7 @@
 
 -export([packet_header/1, header_version/1, header_src_id/1, packet_data/2]).
 
--export([process_flowsets/2, apply_templates/2]).
+-export([process_flowsets/2, apply_templates/2, format_data/4]).
 
 -include_lib("netsink/include/netflow.hrl").
 -include_lib("whistle_misc/include/logging.hrl").
@@ -93,12 +93,13 @@ apply_template_to_data_flowset_recs(_, RecordLength, FieldsLen, _, Acc)
   when RecordLength < FieldsLen -> {ok, Acc};
 apply_template_to_data_flowset_recs(TemplateFields, RecordLength, FieldsLen, Data, Acc) ->
     {ok, Rest, DetemplatedFields} =
-        apply_template_field_recs(
-          TemplateFields, FieldsLen, Data, []
-         ),
+        apply_template_field_recs(TemplateFields, FieldsLen, Data),
     apply_template_to_data_flowset_recs(
       TemplateFields, RecordLength - FieldsLen, FieldsLen, Rest, [DetemplatedFields | Acc]
      ).
+
+apply_template_field_recs(TemplateFields, FieldsLen, Data) ->
+    apply_template_field_recs(TemplateFields, FieldsLen, Data, []).
 
 apply_template_field_recs([], _, Rest, Acc) -> {ok, Rest, Acc};
 apply_template_field_recs(
@@ -110,25 +111,24 @@ apply_template_field_recs(
     apply_template_field_recs(TemplateFields, FieldsLen, Rest, [DetemplatedData | Acc]).
 
 
-
-%% format_data_field(ID, Length, DataField) ->
-%%     try
-%%         Formatted =
-%%             case netflow_user_types:user_type(ID, Length, DataField) of
-%%                 no_match ->
-%%                     Type = proplists:get_value(ID, TypesBinded, none),
-%%                     netflow_types:Type(Length, DataField);
-%%                 UserFormatted -> UserFormatted
-%%             end,
-%%         {ok, Formatted}
-%%     catch Error:Reason ->
-%%             ?error(
-%%                [?MODULE, format_data_field,
-%%                 {types_binded, TypesBinded}, {id, ID}, {length, Length},
-%%                 {data, DataField}, {error, Error}, {reason, Reason}]
-%%               ),
-%%             {error, DataField}
-%%     end.
+format_data(TypesBinded, ID, Length, Data) ->
+    try
+        Formatted =
+            case netflow_user_types:user_type(ID, Length, Data) of
+                no_match ->
+                    Type = proplists:get_value(ID, TypesBinded, none),
+                    netflow_types:Type(Length, Data);
+                UserFormatted -> UserFormatted
+            end,
+        {ok, Formatted}
+    catch Error:Reason ->
+            ?error(
+               [?MODULE, format_data_field,
+                {types_binded, TypesBinded}, {id, ID}, {length, Length},
+                {data, Data}, {error, Error}, {reason, Reason}]
+              ),
+            {error, {Error, Reason, Data}}
+    end.
 
 %% format_data_field(?IN_BYTES, Length, DataField) ->
 %%     {?IN_BYTES, Length, in_bytes, binary:decode_unsigned(DataField, big)};
@@ -150,7 +150,7 @@ apply_template_field_recs(
 %%     {Type, Length, undefined_format, DataField}.
 
 apply_templates(_Templates, [], Processed, Unprocessed) ->
-    {Processed, Unprocessed};
+    {lists:flatten(Processed), Unprocessed};
 apply_templates(
   Templates, [{data, TemplateID, RecordLength, Data} | DataSet],
   Processed0, Unprocessed0
@@ -185,7 +185,7 @@ decode_template_iter(<<>>, Acc) -> Acc;
 decode_template_iter(
   <<TemplateID:16/big-unsigned-integer, FieldsCnt:16/big-unsigned-integer, Rest0/binary>>, Acc
  ) ->
-    {TemplateFieldRecs, FieldsLen, Rest1} = decode_single_template(FieldsCnt, Rest0, 0, []),
+    {TemplateFieldRecs, FieldsLen, Rest1} = decode_single_template(FieldsCnt, Rest0),
     TemplateRec =
         #template_rec{
            id = TemplateID,
@@ -193,6 +193,9 @@ decode_template_iter(
            fields = TemplateFieldRecs
           },
     decode_template_iter(Rest1, [TemplateRec | Acc]).
+
+decode_single_template(FieldsCnt, Rest0) ->
+    decode_single_template(FieldsCnt, Rest0, 0, []).
 
 decode_single_template(0, Rest, FieldsLen, Acc) -> {lists:reverse(Acc), FieldsLen, Rest};
 decode_single_template(

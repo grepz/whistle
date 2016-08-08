@@ -114,7 +114,7 @@ handle_call(Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast(
   ?worker_data_process(Header, Data),
-  State = #s{templates = Templates0, unprocessed = Unprocessed0, types = _Types}
+  State = #s{templates = Templates0, unprocessed = Unprocessed0, types = Types}
  ) ->
 %%    ?debug([?MODULE, handle_cast, worker_data_process, {header, Header}, {data, Data}]),
     case netsink:packet_data(netsink:header_version(Header), Data) of
@@ -127,7 +127,11 @@ handle_cast(
                         {templates, Templates1}, {data, NetFlowData0}]
                       ),
                     Unprocessed1 = lists:concat([Unprocessed0, NetFlowData0]),
-                    {_Processed, Unprocessed2} = netsink:apply_templates(Templates1, Unprocessed1),
+                    {Processed, Unprocessed2} = netsink:apply_templates(Templates1, Unprocessed1),
+                    lists:map(
+                      fun ({ID, Length, DataToFormat}) ->
+                              netsink:format_data(Types, ID, Length, DataToFormat)
+                      end, Processed),
                     {noreply, State#s{templates = Templates1, unprocessed = Unprocessed2}};
                 {error, Reason} ->
                     ?error([?MODULE, handle_cast, worker_data_process, {error, Reason}])
