@@ -9,7 +9,7 @@
 -module(netflow_types).
 
 %% API
--export([integer/2, integer/3, ipv4_addr/2]).
+-export([integer/2, integer/3, ipv4_addr/2, none/2]).
 
 %%%===================================================================
 %%% API
@@ -21,14 +21,16 @@
 %% @end
 %%--------------------------------------------------------------------
 
-integer(_Length, Data) ->
-    integer(big, Data).
+integer(Length, Data) ->
+    integer(Length, big, Data).
 
 integer(_Length, Endianess, Data) ->
     binary:decode_unsigned(Data, Endianess).
 
 ipv4_addr(4, <<X1, X2, X3, X4>>) -> {X1, X2, X3, X4};
 ipv4_addr(_, Data) -> Data.
+
+none(_, Data) -> Data.
 
 
 %%%===================================================================

@@ -77,9 +77,10 @@ apply_template_to_data_flowset(Templates, TemplateID, RecordLength, Data) ->
     case lists:keyfind(TemplateID, #template_rec.id, Templates) of
         false -> {error, {no_template, TemplateID, RecordLength, Data}};
         #template_rec{id = TemplateID, fields_len = FieldsLen, fields = TemplateFields} ->
-            {ok, ProcessedData} = apply_template_to_data_flowset_recs(TemplateFields, RecordLength, FieldsLen, Data),
-            ?debug([?MODULE, xxxxxxx, {data, ProcessedData}]),
-            {ok, ProcessedData}
+            {ok, _ProcessedData} =
+                apply_template_to_data_flowset_recs(
+                  TemplateFields, RecordLength, FieldsLen, Data
+                 )
     end.
 
 apply_template_to_data_flowset_recs(TemplateFields, RecordLength, FieldsLen, Data) ->
@@ -105,29 +106,48 @@ apply_template_field_recs(
   FieldsLen, Data, Acc
  ) ->
     <<DataField:Length/binary, Rest/binary>> = Data,
-    FormattedData = format_data_field(Type, Length, DataField),
-    apply_template_field_recs(TemplateFields, FieldsLen, Rest, [FormattedData | Acc]).
+    DetemplatedData = {Type, Length, DataField},
+    apply_template_field_recs(TemplateFields, FieldsLen, Rest, [DetemplatedData | Acc]).
 
 
 
-format_data_field(?IN_BYTES, Length, DataField) ->
-    {?IN_BYTES, Length, in_bytes, binary:decode_unsigned(DataField, big)};
-format_data_field(?L4_SRC_PORT, Length, DataField) ->
-    {?L4_SRC_PORT, Length, l4_src_port, binary:decode_unsigned(DataField, big)};
-format_data_field(?IPV4_SRC_ADDR, Length, <<X1, X2, X3, X4>>) ->
-    {
-      ?IPV4_SRC_ADDR, Length, ipv4_src_addr, {X1, X2, X3, X4}
-    };
-format_data_field(?IPV4_DST_ADDR, Length, <<X1, X2, X3, X4>>) ->
-    {
-      ?IPV4_DST_ADDR, Length, ipv4_dst_addr, {X1, X2, X3, X4}
-    };
-format_data_field(?IPV4_NEXT_HOP, Length, <<X1, X2, X3, X4>>) ->
-    {
-      ?IPV4_NEXT_HOP, Length, ipv4_next_hop, {X1, X2, X3, X4}
-    };
-format_data_field(Type, Length, DataField) ->
-    {Type, Length, undefined_format, DataField}.
+%% format_data_field(ID, Length, DataField) ->
+%%     try
+%%         Formatted =
+%%             case netflow_user_types:user_type(ID, Length, DataField) of
+%%                 no_match ->
+%%                     Type = proplists:get_value(ID, TypesBinded, none),
+%%                     netflow_types:Type(Length, DataField);
+%%                 UserFormatted -> UserFormatted
+%%             end,
+%%         {ok, Formatted}
+%%     catch Error:Reason ->
+%%             ?error(
+%%                [?MODULE, format_data_field,
+%%                 {types_binded, TypesBinded}, {id, ID}, {length, Length},
+%%                 {data, DataField}, {error, Error}, {reason, Reason}]
+%%               ),
+%%             {error, DataField}
+%%     end.
+
+%% format_data_field(?IN_BYTES, Length, DataField) ->
+%%     {?IN_BYTES, Length, in_bytes, binary:decode_unsigned(DataField, big)};
+%% format_data_field(?L4_SRC_PORT, Length, DataField) ->
+%%     {?L4_SRC_PORT, Length, l4_src_port, binary:decode_unsigned(DataField, big)};
+%% format_data_field(?IPV4_SRC_ADDR, Length, <<X1, X2, X3, X4>>) ->
+%%     {
+%%       ?IPV4_SRC_ADDR, Length, ipv4_src_addr, {X1, X2, X3, X4}
+%%     };
+%% format_data_field(?IPV4_DST_ADDR, Length, <<X1, X2, X3, X4>>) ->
+%%     {
+%%       ?IPV4_DST_ADDR, Length, ipv4_dst_addr, {X1, X2, X3, X4}
+%%     };
+%% format_data_field(?IPV4_NEXT_HOP, Length, <<X1, X2, X3, X4>>) ->
+%%     {
+%%       ?IPV4_NEXT_HOP, Length, ipv4_next_hop, {X1, X2, X3, X4}
+%%     };
+%% format_data_field(Type, Length, DataField) ->
+%%     {Type, Length, undefined_format, DataField}.
 
 apply_templates(_Templates, [], Processed, Unprocessed) ->
     {Processed, Unprocessed};
