@@ -117,7 +117,7 @@ handle_cast(
   State = #s{templates = Templates0, unprocessed = Unprocessed0, types = Types}
  ) ->
 %%    ?debug([?MODULE, handle_cast, worker_data_process, {header, Header}, {data, Data}]),
-    case netsink:packet_data(netsink:header_version(Header), Data) of
+    case whistle_misc:duration({netsink, packet_data, [netsink:header_version(Header), Data]}) of %% netsink:packet_data(netsink:header_version(Header), Data)) of
         {ok, DataFlowSet} ->
             ?debug([?MODULE, handle_cast, worker_data_process, {data_packets_len, length(DataFlowSet)}]),
             case netsink:process_flowsets(Templates0, DataFlowSet) of
@@ -127,11 +127,14 @@ handle_cast(
                         {templates, Templates1}, {data, NetFlowData0}]
                       ),
                     Unprocessed1 = lists:concat([Unprocessed0, NetFlowData0]),
-                    {Processed, Unprocessed2} = netsink:apply_templates(Templates1, Unprocessed1),
-                    lists:map(
-                      fun ({ID, Length, DataToFormat}) ->
-                              netsink:format_data(Types, ID, Length, DataToFormat)
-                      end, Processed),
+                    {Processed, Unprocessed2} = whistle_misc:duration({netsink, apply_templates, [Templates1, Unprocessed1]}), %% netsink:apply_templates(Templates1, Unprocessed1),
+                    Fun = fun() ->
+                                  lists:map(
+                                    fun ({ID, Length, DataToFormat}) ->
+                                            netsink:format_data(Types, ID, Length, DataToFormat)
+                                    end, Processed)
+                          end,
+                    whistle_misc:duration({Fun, []}),
                     {noreply, State#s{templates = Templates1, unprocessed = Unprocessed2}};
                 {error, Reason} ->
                     ?error([?MODULE, handle_cast, worker_data_process, {error, Reason}])

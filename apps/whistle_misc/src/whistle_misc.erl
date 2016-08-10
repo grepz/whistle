@@ -12,9 +12,13 @@
 -export([log/2, now/0, local_time_to_seconds/1, seconds_to_local_time/1,
          local_time_to_string/1, unix_time_to_string/1, get_app_env/2]).
 
+-export([duration/1]).
+
 -define(SECONDS1970, 62167219200). %% {{1970,1,1}, {0,0,0}}
 
 -define(TRUNC_LEN, 64536).
+
+-include_lib("whistle_misc/include/logging.hrl").
 
 %%%===================================================================
 %%% API
@@ -25,6 +29,20 @@
 %% @spec
 %% @end
 %%--------------------------------------------------------------------
+
+-ifdef(duration_measure).
+duration({F, A}) ->
+    {Time, Value} = timer:tc(F, A),
+    ?debug([duration, {func, F}, {time, Time}]),
+    Value;
+duration({M, F, A}) ->
+    {Time, Value} = timer:tc(M, F, A),
+    ?debug([duration, {module, M}, {func, F}, {time, Time}]),
+    Value.
+-else.
+duration({F, A}) -> erlang:apply(F, A);
+duration({M, F, A}) -> erlang:apply(M, F, A).
+-endif.
 
 log(Lvl, LogMessage) ->
     {Fmt, Args} = log_format(LogMessage, [], []),
